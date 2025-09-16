@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=2160, initial-scale=1.0">
+    <title>q</title>
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <link rel="stylesheet" href="./assets/css/splide.css">
+</head>
+<body>
+    <div id="layout">
+        <div id="did">
+            <div class="video_area">
+                <video src="./assets/videos/sample3.mp4" autoplay></video>
+            </div>
+            <div class="image_area">
+                <img src="./assets/images/sample1.jpg">
+            </div>
+        </div>
+        <div id="status">
+            <div class="info">
+                <h1 id="logo"><img src="./assets/images/logo.png" alt="BlueHands"></h1>
+                <h2>차량 정비현황</h2>
+                <div id="time">3월 26일(화) 오후 2:44</div>
+            </div>
+            <div class="status_slides_wrap">
+                <div id="status_slide" class="splide">
+                    <div class="splide__track" focus-group>
+                        <ul id="status_items" class="splide__list">
+                            <li class="splide__slide">
+                                <div class="fix_item comp"><div class="status">완료</div> <div class="model">펠리세이드</div> <div class="number">**거0353</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item comp"><div class="status">완료</div> <div class="model">G90(RS4)</div> <div class="number">**다2351</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">G60</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">아반떼N</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">그랜저GN7</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">에쿠스</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">쏘나타</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">엑센트</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">투싼</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">팰리세이드</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">아이오닉5</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">아이오닉6</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">코나</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">베뉴</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">싼타페</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                            <li class="splide__slide">
+                                <div class="fix_item"><div class="status">작업중</div> <div class="model">캐스퍼</div> <div class="number">**버6542</div> <div class="time">19:00</div> </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="./assets/js/splide.js"></script>
+<script src="./assets/js/splide-extension-grid.min.js"></script> 
+<script src="./assets/js/index.js"></script>
+<script>
+    var slide = new Splide("#status_slide", {
+        autoplay: true,
+        type: 'loop',
+        interval: 6000,
+        perPage: 1,
+        perMove:1,
+        perMove:1,
+        pagination: false,
+        arrows: false,
+        keyboard: false,
+        grid:{
+        rows: 3,
+        cols: 2,
+        }
+    });
+    slide.mount(window.splide.Extensions);
+</script>
+</html>
