@@ -443,13 +443,31 @@ class RightImageLoop {
     this.clearTimer();
     const token = ++this.loadToken;
     const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
+    if(targetIdx == null || targetIdx === undefined) return;
     const img = this.imageEls[targetIdx];
+    if(!img) return;
     const src = (item.fileURL || '').trim();
     await setImageSource(img, src);
     if(token !== this.loadToken) return;
     this.setActiveBuffer(targetIdx);
+    this.queueNextPreload(token);
     const duration = Number.isFinite(item.ptime) ? Math.max(item.ptime, 0.1) : 10;
     this.timer = setTimeout(()=>{ this.next(); }, duration * 1000);
+  }
+  queueNextPreload(token){
+    if(token !== this.loadToken) return;
+    if(this.imageEls.length <= 1) return;
+    if(this.items.length <= 1) return;
+    const standbyIdx = this.getStandbyIndex();
+    if(standbyIdx === this.activeBufferIndex) return;
+    const nextIndex = (this.idx + 1) % this.items.length;
+    if(nextIndex === this.idx) return;
+    const nextItem = this.items[nextIndex];
+    if(!nextItem) return;
+    const img = this.imageEls[standbyIdx];
+    if(!img) return;
+    const src = (nextItem.fileURL || '').trim();
+    setImageSource(img, src).catch(()=>{});
   }
   next(){
     this.nextIdx();
