@@ -1,0 +1,47 @@
+@import url('./fonts.css');
+*,:before,:after{box-sizing: border-box;margin:0;padding:0;list-style: none;}
+* {-webkit-user-select: none;-moz-user-select: none;-ms-user-select: none;user-select: none;font-family: "Hyundai Sans Text KR", sans-serif;}
+html,body{width:100%;height:100%;touch-action: pan-x pan-y;overscroll-behavior: none;}
+html{font-size: 62.5%;}
+body{font-size: 4rem;font-family: "Hyundai Sans Text KR", sans-serif;}
+img{max-width:100%;}
+
+#layout{width:1920px;height:1080px;overflow: hidden;;position: relative;;background-color: #1b232e;margin:0 auto;display:flex;flex-direction: column;box-shadow: 0 0 15px rgba(0,0,0,0.3);}
+#did{display:table;table-layout: fixed;width:100%;overflow: hidden;}
+.video_area{width:1442px;display: table-cell;text-align: left;position: relative;height:810px;}
+.video_area .wait{position: absolute;z-index: -1;width:100%;height:100%;left:0;top:0;display: flex;align-items: center;justify-content: center;gap:30px;background-color: #101318;color:#fff;}
+.video_area .wait .name{font-family: "Hyundai Sans Head";font-weight: 700;font-size:60px;}
+
+.image_area{display: table-cell;position: relative;height:810px;}
+.video_area .item,
+.image_area .item{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity .3s ease;pointer-events:none;}
+.video_area .item.is-active,
+.image_area .item.is-active{opacity:1;pointer-events:auto;z-index:1;}
+.video_area .item video,
+.image_area .item img{width:100%;height:100%;display:block;}
+#status{color:#fff;background-color: #1b232e;box-shadow: inset 0 0 10px rgb(23 144 148 / 25%);display: flex;height: 270px;overflow: hidden;position: relative;}
+#status:before{content:"";position: absolute;left:0;top:0;width:100%;height: 100%;transform: rotate(-4deg);background-position: center center;background-repeat: no-repeat;background-size: cover;background-image: url('../images/bg.png');opacity:0.7;}
+#status .info{width:450px;padding:30px 0 30px 45px;font-family: "Hyundai Sans Head";display: flex;flex-direction: column;position: relative;z-index: 1;}
+#status #logo{}
+#status #logo img{width: 260px;display: block;}
+#status h2{font-size:45px;margin-top:15px;}
+#status #time{font-size:30px;margin-top:auto;color: rgba(255,255,255,.85);}
+.status_slides_wrap{width:1420px;position: relative;z-index: 1;font-size:28px;padding-top:32px;}
+#status_items > .splide__slide {display: flex;flex-direction: column;gap:13px;}
+#status_items > .splide__slide > .splide__slide__row{display: flex;gap:50px;}
+#status_items > .splide__slide > .splide__slide__row > .splide__slide{width:calc(50% - 25px) !important;}
+
+.status_slides_wrap .fix_item{position: relative;display: flex;align-items: center;background: linear-gradient(90deg,rgba(53, 56, 59, 0.329) 0%, rgba(172, 172, 172, 0.267) 60%, rgba(102, 107, 112, 0.329) 100%);height:58px;border-radius:8px;overflow: hidden;}
+.status_slides_wrap .fix_item .status{width: 130px;font-size:30px;letter-spacing: 4px;text-align: center;background-color: #52575e;height:100%;padding:12px 0 10px;position: relative;z-index: 10;border-radius: 8px;}
+.status_slides_wrap .fix_item .model{margin-left:20px;width:220px;padding-top:3px;}
+.status_slides_wrap .fix_item .number{padding-top:3px;}
+.status_slides_wrap .fix_item .time{margin-left:auto;margin-right:20px;padding-top:3px;}
+
+.status_slides_wrap .fix_item.comp{border:0;background: linear-gradient(90deg,rgba(27, 35, 46, 1) 0%, rgb(45, 75, 109) 60%, rgb(38, 54, 77) 100%);}
+.status_slides_wrap .fix_item.comp .status{background-color: #019ec0;}
+.status_slides_wrap .fix_item.comp:before,
+.status_slides_wrap .fix_item.comp:after{content: "";position: absolute;left:0;width:100%;height:2px;background: #1B232E;
+background: linear-gradient(90deg,rgba(27, 35, 46, 1) 0%, rgb(79, 120, 126) 55%, rgba(27, 35, 46, 1) 110%);}
+.status_slides_wrap .fix_item.comp:before{top:0;}
+.status_slides_wrap .fix_item.comp:after{bottom:0;}
+

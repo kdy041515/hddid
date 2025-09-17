@@ -1,0 +1,18 @@
+{
+	"id": 8950,
+	"name": "롯데백화점 부산점",
+	"capacity": 72.6,
+	"output_power": 50.2,
+	"today_amount": 80,
+	"total_amount": 87817,
+	"co2": 0.032158,
+	"temp": null,
+	"wm1_type": null,
+	"wm1_radiation": null,
+	"wm2_type": null,
+	"wm2_radiation": null,
+	"wm3_type": null,
+	"wm3_radiation": null,
+	"wm4_type": null,
+	"wm4_radiation": null
+}
