@@ -178,20 +178,29 @@ class LeftVideoLoop {
   constructor(items, buffers){
     this.items = items;
     this.idx = 0;
-    this.timer = null;
+    this.swapTimer = null;
+    this.prerollTimer = null;
     this.isEventPlaying = false; // 이벤트 중단/복귀 제어
     this.videoWrappers = buffers?.wrappers || [];
     this.videoEls = buffers?.elements || [];
     const activeIndex = this.videoWrappers.findIndex(w => w.classList.contains('is-active'));
     this.activeBufferIndex = activeIndex >= 0 ? activeIndex : 0;
     this.hasActiveContent = activeIndex >= 0;
-    this.loadToken = 0;
+    this.preloaded = null;
+    this.preloadPromise = null;
+    this.playToken = 0;
+    this.preloadToken = 0;
+    this.preRollLeadSeconds = 0.3;
+    this.pendingResumeIndex = 0;
   }
   current(){ return this.items[this.idx % this.items.length]; }
   nextIdx(){ this.idx = (this.idx + 1) % this.items.length; }
-  clearTimer(){ if(this.timer){ clearTimeout(this.timer); this.timer = null; } }
+  clearTimers(){
+    if(this.swapTimer){ clearTimeout(this.swapTimer); this.swapTimer = null; }
+    if(this.prerollTimer){ clearTimeout(this.prerollTimer); this.prerollTimer = null; }
+  }
   stop(){
-    this.clearTimer();
+    this.clearTimers();
     this.videoEls.forEach(video => { try{ video.pause(); }catch(e){} });
   }
   getStandbyIndex(){
@@ -213,51 +222,183 @@ class LeftVideoLoop {
     this.activeBufferIndex = idx;
     this.hasActiveContent = true;
   }
-  async swapToItem(item){
-    if(!item || this.videoEls.length === 0) return;
-    const token = ++this.loadToken;
-    const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
-    const video = this.videoEls[targetIdx];
+  durationFor(item){
+    return Number.isFinite(item?.ptime) ? Math.max(item.ptime, 0.1) : 10;
+  }
+  async loadIntoBuffer(bufferIdx, item, token){
+    if(bufferIdx == null || !item) return;
+    const video = this.videoEls[bufferIdx];
+    if(!video) return;
     const src = (item.fileURL || '').trim();
     await setVideoSource(video, src);
-    if(token !== this.loadToken) return; // 중간에 다른 요청이 들어오면 무시
-    this.setActiveBuffer(targetIdx);
-    if(video){
-      try{ video.currentTime = 0; }catch(e){}
-      video.muted = true;
-      video.play().catch(()=>{});
+    if(token !== this.playToken) return;
+  }
+  async preloadItemAtIndex(index, token){
+    if(this.videoEls.length <= 1){ return; }
+    const item = this.items[index % this.items.length];
+    if(!item) return;
+    const standbyIdx = this.getStandbyIndex();
+    if(standbyIdx === this.activeBufferIndex){ return; }
+    const video = this.videoEls[standbyIdx];
+    if(!video) return;
+    const loadToken = ++this.preloadToken;
+    const src = (item.fileURL || '').trim();
+    await setVideoSource(video, src);
+    if(token !== this.playToken || loadToken !== this.preloadToken) return;
+    try{ video.pause(); }catch(e){}
+    try{ video.currentTime = 0; }catch(e){}
+    this.preloaded = { index: index % this.items.length, item, bufferIndex: standbyIdx, hasStarted: false };
+  }
+  async triggerPreRoll(token, expectedIndex){
+    if(token !== this.playToken || this.isEventPlaying) return;
+    if(this.preloadPromise){
+      try{ await this.preloadPromise; }catch(e){}
+    }
+    if(token !== this.playToken || this.isEventPlaying) return;
+    const preloaded = this.preloaded;
+    if(!preloaded || preloaded.index !== (expectedIndex % this.items.length)) return;
+    const video = this.videoEls[preloaded.bufferIndex];
+    if(!video || preloaded.hasStarted) return;
+    preloaded.hasStarted = true;
+    try{ video.currentTime = 0; }catch(e){}
+    try{ video.muted = true; video.play().catch(()=>{}); }catch(e){}
+  }
+  async completeSwap(token, nextIndex){
+    if(token !== this.playToken || this.isEventPlaying) return;
+    if(this.preloadPromise){
+      try{ await this.preloadPromise; }catch(e){}
+    }
+    if(token !== this.playToken || this.isEventPlaying) return;
+    const preloaded = this.preloaded;
+    if(preloaded && preloaded.index === (nextIndex % this.items.length)){
+      this.startPlaybackAtIndex(nextIndex % this.items.length, { usePreloaded: true, preloadedData: preloaded });
+    }else{
+      this.startPlaybackAtIndex(nextIndex % this.items.length);
     }
   }
-  async playItem(item){
+  async startPlaybackAtIndex(index, options = {}){
+    if(this.items.length === 0 || this.videoEls.length === 0) return;
+    const playlistLength = this.items.length;
+    const normalizedIndex = ((index % playlistLength) + playlistLength) % playlistLength;
+    const defaultItem = this.items[normalizedIndex];
+    const { usePreloaded = false, preloadedData = null, isEvent = false } = options;
+    const item = (usePreloaded && preloadedData?.item) ? preloadedData.item : defaultItem;
     if(!item) return;
-    this.isEventPlaying = false;
-    this.clearTimer();
-    await this.swapToItem(item);
+
+    const token = ++this.playToken;
+    this.isEventPlaying = isEvent;
+    this.clearTimers();
+
+    let bufferIndex = null;
+    let video = null;
+    const consumedPreloaded = usePreloaded && preloadedData && typeof preloadedData.bufferIndex === 'number' ? preloadedData : null;
+
+    if(consumedPreloaded){
+      bufferIndex = consumedPreloaded.bufferIndex;
+      video = this.videoEls[bufferIndex];
+      this.preloaded = null;
+      this.preloadPromise = null;
+    }else{
+      this.preloaded = null;
+      this.preloadPromise = null;
+      bufferIndex = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
+      if(bufferIndex == null || bufferIndex === undefined){ return; }
+      await this.loadIntoBuffer(bufferIndex, item, token);
+      if(token !== this.playToken) return;
+      video = this.videoEls[bufferIndex];
+      if(video){
+        try{ video.currentTime = 0; }catch(e){}
+      }
+    }
+
+    if(!video) return;
+
+    this.setActiveBuffer(bufferIndex);
+    if(!(consumedPreloaded && consumedPreloaded.hasStarted)){
+      try{ video.currentTime = 0; }catch(e){}
+    }
+    try{ video.muted = true; video.play().catch(()=>{}); }catch(e){}
+
+    this.idx = normalizedIndex;
+    if(!isEvent){
+      this.pendingResumeIndex = normalizedIndex;
+    }
+
+    if(isEvent){
+      const duration = this.durationFor(item);
+      const eventToken = this.playToken;
+      this.swapTimer = setTimeout(()=>{
+        if(eventToken !== this.playToken) return;
+        this.isEventPlaying = false;
+        const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
+        this.startPlaybackAtIndex(resumeIndex);
+      }, Math.max(duration * 1000, 0));
+      return;
+    }
+
+    const duration = this.durationFor(item);
+    const nextIndex = (normalizedIndex + 1) % playlistLength;
+
+    if(this.videoEls.length > 1){
+      const preloadToken = this.playToken;
+      this.preloadPromise = this.preloadItemAtIndex(nextIndex, preloadToken);
+      const lead = Math.min(duration, this.preRollLeadSeconds);
+      const preRollDelay = Math.max((duration - lead) * 1000, 0);
+      this.prerollTimer = setTimeout(()=>{
+        this.triggerPreRoll(preloadToken, nextIndex);
+      }, preRollDelay);
+    }else{
+      this.preloadPromise = null;
+    }
+
+    const swapToken = this.playToken;
+    this.swapTimer = setTimeout(()=>{
+      this.completeSwap(swapToken, nextIndex);
+    }, Math.max(duration * 1000, 0));
+  }
+  async playItem(item, options = {}){
     if(!item) return;
-    const duration = Number.isFinite(item.ptime) ? Math.max(item.ptime, 0.1) : 10;
-    this.timer = setTimeout(()=>{ this.next(); }, duration * 1000);
+    const index = options.index != null ? options.index : this.items.indexOf(item);
+    if(index < 0){ return; }
+    await this.startPlaybackAtIndex(index, options);
   }
   next(){
-    this.nextIdx();
-    this.playItem(this.current());
+    if(this.items.length === 0) return;
+    const nextIndex = (this.idx + 1) % this.items.length;
+    this.startPlaybackAtIndex(nextIndex);
   }
   start(){
     this.items = this.items.filter(inDateRange);
     if(this.items.length === 0){ console.warn('Left list empty'); return; }
     this.idx = 0;
-    this.playItem(this.current());
+    this.startPlaybackAtIndex(0);
   }
   async playEventOnce(item){
     if(!item) return;
     this.isEventPlaying = true;
-    this.clearTimer();
-    await this.swapToItem(item);
-    if(!item) return;
-    const duration = Number.isFinite(item.ptime) ? Math.max(item.ptime, 0.1) : 10;
-    this.timer = setTimeout(()=>{
+    this.pendingResumeIndex = this.idx;
+    this.clearTimers();
+    this.preloaded = null;
+    this.preloadPromise = null;
+    const token = ++this.playToken;
+    const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
+    if(targetIdx == null || targetIdx === undefined){ return; }
+    await this.loadIntoBuffer(targetIdx, item, token);
+    if(token !== this.playToken) return;
+    this.setActiveBuffer(targetIdx);
+    const video = this.videoEls[targetIdx];
+    if(video){
+      try{ video.currentTime = 0; }catch(e){}
+      try{ video.muted = true; video.play().catch(()=>{}); }catch(e){}
+    }
+    const duration = this.durationFor(item);
+    const resumeToken = this.playToken;
+    this.swapTimer = setTimeout(()=>{
+      if(resumeToken !== this.playToken) return;
       this.isEventPlaying = false;
-      this.playItem(this.current());
-    }, duration * 1000);
+      const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
+      this.startPlaybackAtIndex(resumeIndex);
+    }, Math.max(duration * 1000, 0));
   }
   ensurePlaying(){
     const video = this.videoEls[this.activeBufferIndex];
