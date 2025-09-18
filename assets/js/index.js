@@ -131,7 +131,7 @@ function startClock(){
 
 /** XML 파싱 */
 async function loadKioskXml(){
-  const res = await fetch(KIOSK_XML_URL, { cache:'no-cache' });
+  const res = await fetch(KIOSK_XML_URL);
   const txt = await res.text();
   const xml = new window.DOMParser().parseFromString(txt, 'text/xml');
   const headerPick = (target) => {
