@@ -16,8 +16,18 @@ function collectMediaBuffers(rootSelector, mediaSelector){
   return { wrappers, elements };
 }
 
-async function setVideoSource(video, src){
-  if(!video) return;
+function resolvedPromise(value){
+  return $.Deferred().resolve(value).promise();
+}
+
+function delay(ms){
+  return $.Deferred(function(dfd){
+    setTimeout(()=>dfd.resolve(), Math.max(ms || 0, 0));
+  }).promise();
+}
+
+function setVideoSource(video, src){
+  if(!video) return resolvedPromise();
   video.pause();
   video.muted = true;
   video.setAttribute('muted', '');
@@ -26,10 +36,11 @@ async function setVideoSource(video, src){
   if(!src){
     video.removeAttribute('src');
     try{ video.load(); }catch(e){}
-    return false;
+    return resolvedPromise(false);
   }
 
-  const waitUntilReady = () => new Promise(resolve => {
+  const waitUntilReady = () => {
+    const dfd = $.Deferred();
     let settled = false;
     let ok = false;
     const finish = () => {
@@ -40,56 +51,67 @@ async function setVideoSource(video, src){
       video.removeEventListener('canplay', finish);
       video.removeEventListener('error', finish);
       // readyState 2 이상이면 성공으로 간주
-      if (ok || video.readyState >= 2) resolve(true);
-      else resolve(false);
+      if (ok || video.readyState >= 2) dfd.resolve(true);
+      else dfd.resolve(false);
     };
     const timer = setTimeout(finish, 5000);
     video.addEventListener('loadeddata', ()=>{ ok = true; finish(); });
     video.addEventListener('canplay', ()=>{ ok = true; finish(); });
     video.addEventListener('error', ()=>{ ok = false; finish(); });
     if(video.readyState >= 2){ finish(); }
-  });
+    return dfd.promise();
+  };
 
   video.src = src;
   try{ video.load(); }catch(e){}
 
-  if(video.readyState >= 2) return true;
-  return await waitUntilReady();
+  if(video.readyState >= 2) return resolvedPromise(true);
+  return waitUntilReady();
 }
 
-async function setImageSource(img, src){
-  if(!img) return;
+function setImageSource(img, src){
+  if(!img) return resolvedPromise();
   if(!src){
     img.removeAttribute('src');
-    return false;
+    return resolvedPromise(false);
   }
   if(img.getAttribute('src') === src && img.complete && img.naturalWidth > 0){
-    return true;
+    return resolvedPromise(true);
   }
-  const waitUntilReady = () => new Promise(resolve => {
+  const waitUntilReady = () => {
+    const dfd = $.Deferred();
     let settled = false;
+    let ok = false;
     const finish = () => {
       if(settled) return;
       settled = true;
-      let ok = false;
       clearTimeout(timer);
       img.removeEventListener('load', finish);
       img.removeEventListener('error', finish);
-      resolve(ok || (img.complete && img.naturalWidth > 0));
+      dfd.resolve(ok || (img.complete && img.naturalWidth > 0));
     };
     const timer = setTimeout(finish, 5000);
     img.addEventListener('load', ()=>{ ok = true; finish(); });
     img.addEventListener('error', ()=>{ ok = false; finish(); });
-    if(img.complete && img.naturalWidth > 0){ finish(); }
-    else if(typeof img.decode === 'function'){
-      img.decode().then(finish).catch(finish);
+    if(img.complete && img.naturalWidth > 0){
+      finish();
+    } else if(typeof img.decode === 'function'){
+      try {
+        const decodePromise = img.decode();
+        if(decodePromise && typeof decodePromise.then === 'function'){
+          decodePromise.then(finish, finish);
+        }
+      } catch(e){
+        finish();
+      }
     }
-  });
+    return dfd.promise();
+  };
 
   img.src = src;
 
-  if(img.complete && img.naturalWidth > 0) return true;
-  return await waitUntilReady();
+  if(img.complete && img.naturalWidth > 0) return resolvedPromise(true);
+  return waitUntilReady();
 }
 
 function pad2(n){ return String(n).padStart(2,'0'); }
@@ -130,34 +152,46 @@ function startClock(){
 }
 
 /** XML 파싱 */
-async function loadKioskXml(){
-  const res = await fetch(KIOSK_XML_URL);
-  const txt = await res.text();
-  const xml = new window.DOMParser().parseFromString(txt, 'text/xml');
-  const headerPick = (target) => {
-    return xml.querySelectorAll(`HEADER > ${target}`)?.[0]?.textContent?.trim() || ''
-  };
-
-  const pick = (parentTag) => {
-    return [...xml.querySelectorAll(`${parentTag} > NOTICE_INFO`)].map(info=>{
-      const sch = info.querySelector('SCH_TYPE');
-      const frameList = info.querySelector('FRAME_LIST');
-      const frame = frameList?.querySelector('FRAME_INFO');
-      return {
-        conName: info.querySelector('CON_NAME')?.textContent?.trim() || '',
-        stime: sch?.getAttribute('stime') || '',
-        etime: sch?.getAttribute('etime') || '',
-        ptime: parseFloat(frameList?.getAttribute('ptime') || '10') || 10,
-        fileURL: frame?.getAttribute('fileURL') || '',
+function loadKioskXml(){
+  const dfd = $.Deferred();
+  $.ajax({
+    url: KIOSK_XML_URL,
+    dataType: 'text',
+    cache: false
+  }).done(txt => {
+    try {
+      const xml = new window.DOMParser().parseFromString(txt, 'text/xml');
+      const headerPick = (target) => {
+        return xml.querySelectorAll(`HEADER > ${target}`)?.[0]?.textContent?.trim() || '';
       };
-    });
-  };
 
-  const NAME = headerPick('BRN_NAME'); // 동영상 전용
-  const L = pick('NOTICE_LIST_L'); // 동영상 전용
-  const R = pick('NOTICE_LIST_R'); // 이미지 전용
-  const E = pick('NOTICE_LIST_E'); // 이벤트(좌측 강제 재생)
-  return { L, R, E, NAME };
+      const pick = (parentTag) => {
+        return [...xml.querySelectorAll(`${parentTag} > NOTICE_INFO`)].map(info=>{
+          const sch = info.querySelector('SCH_TYPE');
+          const frameList = info.querySelector('FRAME_LIST');
+          const frame = frameList?.querySelector('FRAME_INFO');
+          return {
+            conName: info.querySelector('CON_NAME')?.textContent?.trim() || '',
+            stime: sch?.getAttribute('stime') || '',
+            etime: sch?.getAttribute('etime') || '',
+            ptime: parseFloat(frameList?.getAttribute('ptime') || '10') || 10,
+            fileURL: frame?.getAttribute('fileURL') || '',
+          };
+        });
+      };
+
+      const NAME = headerPick('BRN_NAME'); // 동영상 전용
+      const L = pick('NOTICE_LIST_L'); // 동영상 전용
+      const R = pick('NOTICE_LIST_R'); // 이미지 전용
+      const E = pick('NOTICE_LIST_E'); // 이벤트(좌측 강제 재생)
+      dfd.resolve({ L, R, E, NAME });
+    } catch (err) {
+      dfd.reject(err);
+    }
+  }).fail((xhr, status, err) => {
+    dfd.reject(err || status);
+  });
+  return dfd.promise();
 }
 
 /** ---------- 플레이어 컨트롤러 ---------- */
@@ -212,176 +246,245 @@ class LeftVideoLoop {
   durationFor(item){
     return Number.isFinite(item?.ptime) ? Math.max(item.ptime, 0.1) : 10;
   }
-  async loadIntoBuffer(bufferIdx, item, token){
-    if(bufferIdx == null || !item) return;
+  loadIntoBuffer(bufferIdx, item, token){
+    if(bufferIdx == null || !item) return resolvedPromise();
     const video = this.videoEls[bufferIdx];
-    if(!video) return;
+    if(!video) return resolvedPromise();
     const src = (item.fileURL || '').trim();
-    const ok = await setVideoSource(video, src);
-    if(token !== this.playToken) return false;
-    if(!ok) return false;
-    return true;
+    return setVideoSource(video, src).then(ok => {
+      if(token !== this.playToken) return false;
+      if(!ok) return false;
+      return true;
+    });
   }
-  async preloadItemAtIndex(index, token){
-    if(this.videoEls.length <= 1){ return; }
+  preloadItemAtIndex(index, token){
+    if(this.videoEls.length <= 1){ return resolvedPromise(); }
     const item = this.items[index % this.items.length];
-    if(!item) return;
+    if(!item) return resolvedPromise();
     const standbyIdx = this.getStandbyIndex();
-    if(standbyIdx === this.activeBufferIndex){ return; }
+    if(standbyIdx === this.activeBufferIndex) return resolvedPromise();
     const video = this.videoEls[standbyIdx];
-    if(!video) return;
+    if(!video) return resolvedPromise();
     const loadToken = ++this.preloadToken;
     const src = (item.fileURL || '').trim();
-    try { 
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const ok = await setVideoSource(video, src);
-      if(!ok) return;
-    } catch (e) {
-      console.error(e);
-    }
-    if(token !== this.playToken || loadToken !== this.preloadToken) return;
-    try{ video.pause(); }catch(e){}
-    try{ video.currentTime = 0; }catch(e){}
-    this.preloaded = { index: index % this.items.length, item, bufferIndex: standbyIdx, hasStarted: false };
+    const dfd = $.Deferred();
+    delay(1500).then(() => setVideoSource(video, src)).then(ok => {
+      if(token !== this.playToken || loadToken !== this.preloadToken){ dfd.resolve(); return; }
+      if(!ok){ dfd.resolve(); return; }
+      try{ video.pause(); }catch(e){}
+      try{ video.currentTime = 0; }catch(e){}
+      this.preloaded = { index: index % this.items.length, item, bufferIndex: standbyIdx, hasStarted: false };
+      dfd.resolve();
+    }, err => {
+      console.error(err);
+      dfd.resolve();
+    });
+    return dfd.promise();
   }
-  async triggerPreRoll(token, expectedIndex){
-    if(token !== this.playToken || this.isEventPlaying) return;
+  triggerPreRoll(token, expectedIndex){
+    const proceed = () => {
+      if(token !== this.playToken || this.isEventPlaying) return;
+      const preloaded = this.preloaded;
+      if(!preloaded || preloaded.index !== (expectedIndex % this.items.length)) return;
+      const video = this.videoEls[preloaded.bufferIndex];
+      if(!video || preloaded.hasStarted) return;
+      preloaded.hasStarted = true;
+      try{ video.currentTime = 0; }catch(e){}
+      try{
+        video.removeAttribute('muted');
+        video.volume = 1;
+        const playResult = video.play();
+        if(playResult && typeof playResult.then === 'function'){
+          playResult.then(()=>{}, ()=>{});
+        }
+      }catch(e){}
+    };
+
+    if(token !== this.playToken || this.isEventPlaying) return resolvedPromise();
+
+    const dfd = $.Deferred();
+    const wrappedProceed = () => { proceed(); dfd.resolve(); };
     if(this.preloadPromise){
-      try{ await this.preloadPromise; }catch(e){}
-    }
-    if(token !== this.playToken || this.isEventPlaying) return;
-    const preloaded = this.preloaded;
-    if(!preloaded || preloaded.index !== (expectedIndex % this.items.length)) return;
-    const video = this.videoEls[preloaded.bufferIndex];
-    console.log(video)
-    if(!video || preloaded.hasStarted) return;
-    preloaded.hasStarted = true;
-    try{ video.currentTime = 0; }catch(e){}
-    try{ video.removeAttribute('muted');video.volume = 1;video.play().catch(()=>{}); }catch(e){}
-  }
-  async completeSwap(token, nextIndex){
-    if(token !== this.playToken || this.isEventPlaying) return;
-    if(this.preloadPromise){
-      try{ await this.preloadPromise; }catch(e){}
-    }
-    if(token !== this.playToken || this.isEventPlaying) return;
-    const preloaded = this.preloaded;
-    if(preloaded && preloaded.index === (nextIndex % this.items.length)){
-      this.startPlaybackAtIndex(nextIndex % this.items.length, { usePreloaded: true, preloadedData: preloaded });
+      this.preloadPromise.always(wrappedProceed);
     }else{
-      this.startPlaybackAtIndex(nextIndex % this.items.length);
+      wrappedProceed();
     }
+    return dfd.promise();
   }
-  async startPlaybackAtIndex(index, options = {}){
-    if(this.items.length === 0 || this.videoEls.length === 0) return;
+  completeSwap(token, nextIndex){
+    if(token !== this.playToken || this.isEventPlaying) return resolvedPromise();
+    const dfd = $.Deferred();
+    const proceed = () => {
+      if(token !== this.playToken || this.isEventPlaying){ dfd.resolve(); return; }
+      const preloaded = this.preloaded;
+      const targetIndex = nextIndex % this.items.length;
+      let playPromise;
+      if(preloaded && preloaded.index === targetIndex){
+        playPromise = this.startPlaybackAtIndex(targetIndex, { usePreloaded: true, preloadedData: preloaded });
+      }else{
+        playPromise = this.startPlaybackAtIndex(targetIndex);
+      }
+      if(playPromise && typeof playPromise.always === 'function'){
+        playPromise.always(()=>dfd.resolve());
+      }else if(playPromise && typeof playPromise.then === 'function'){
+        playPromise.then(()=>dfd.resolve());
+      }else{
+        dfd.resolve();
+      }
+    };
+
+    if(this.preloadPromise && typeof this.preloadPromise.always === 'function'){
+      this.preloadPromise.always(proceed);
+    }else if(this.preloadPromise && typeof this.preloadPromise.then === 'function'){
+      this.preloadPromise.then(proceed, proceed);
+    }else{
+      proceed();
+    }
+
+    return dfd.promise();
+  }
+  startPlaybackAtIndex(index, options = {}){
+    const dfd = $.Deferred();
+    if(this.items.length === 0 || this.videoEls.length === 0){ dfd.resolve(); return dfd.promise(); }
+
     const playlistLength = this.items.length;
     const normalizedIndex = ((index % playlistLength) + playlistLength) % playlistLength;
     const defaultItem = this.items[normalizedIndex];
     const { usePreloaded = false, preloadedData = null, isEvent = false } = options;
-    const item = (usePreloaded && preloadedData?.item) ? preloadedData.item : defaultItem;
-    if(!item) return;
+    const item = (usePreloaded && preloadedData && preloadedData.item) ? preloadedData.item : defaultItem;
+    if(!item){ dfd.resolve(); return dfd.promise(); }
 
     const token = ++this.playToken;
     this.isEventPlaying = isEvent;
     this.clearTimers();
 
+    const consumedPreloaded = usePreloaded && preloadedData && typeof preloadedData.bufferIndex === 'number' ? preloadedData : null;
+    const self = this;
     let bufferIndex = null;
     let video = null;
-    const consumedPreloaded = usePreloaded && preloadedData && typeof preloadedData.bufferIndex === 'number' ? preloadedData : null;
+
+    const handlePlayFailure = () => {
+      const nextIndex = (normalizedIndex + 1) % playlistLength;
+      self.startPlaybackAtIndex(nextIndex);
+      dfd.resolve();
+    };
+
+    const afterPlayStarted = () => {
+      if(!video){ dfd.resolve(); return; }
+      const playTokenSnap = self.playToken;
+      const onErr = () => {
+        video.removeEventListener('error', onErr);
+        if (playTokenSnap === self.playToken){
+          const nextIndex = (normalizedIndex + 1) % playlistLength;
+          self.startPlaybackAtIndex(nextIndex);
+        }
+      };
+      video.addEventListener('error', onErr, { once:true });
+
+      self.idx = normalizedIndex;
+      if(!isEvent){
+        self.pendingResumeIndex = normalizedIndex;
+      }
+
+      if(isEvent){
+        const duration = self.durationFor(item);
+        const eventToken = self.playToken;
+        self.swapTimer = setTimeout(()=>{
+          if(eventToken !== self.playToken) return;
+          self.isEventPlaying = false;
+          const resumeIndex = self.pendingResumeIndex % Math.max(self.items.length, 1);
+          self.startPlaybackAtIndex(resumeIndex);
+        }, Math.max(duration * 1000, 0));
+        dfd.resolve();
+        return;
+      }
+
+      const duration = self.durationFor(item);
+      const nextIndex = (normalizedIndex + 1) % playlistLength;
+
+      if(self.videoEls.length > 1){
+        const preloadToken = self.playToken;
+        self.preloadPromise = self.preloadItemAtIndex(nextIndex, preloadToken);
+        const lead = Math.min(duration, self.preRollLeadSeconds);
+        const preRollDelay = Math.max((duration - lead) * 1000, 0);
+        self.prerollTimer = setTimeout(()=>{
+          self.triggerPreRoll(preloadToken, nextIndex);
+        }, preRollDelay);
+      }else{
+        self.preloadPromise = null;
+      }
+
+      const swapToken = self.playToken;
+      self.swapTimer = setTimeout(()=>{
+        self.completeSwap(swapToken, nextIndex);
+      }, Math.max(duration * 1000, 0));
+      dfd.resolve();
+    };
+
+    const proceedWithVideo = () => {
+      if(!video){ dfd.resolve(); return; }
+      bufferIndex = bufferIndex == null ? self.activeBufferIndex : bufferIndex;
+      self.setActiveBuffer(bufferIndex);
+      if(!(consumedPreloaded && consumedPreloaded.hasStarted)){
+        try{ video.currentTime = 0; }catch(e){}
+      }
+      try{
+        video.removeAttribute('muted');
+        video.volume = 1;
+      }catch(e){}
+      let playResult;
+      try{
+        playResult = video.play();
+      }catch(e){
+        handlePlayFailure();
+        return;
+      }
+      if(playResult && typeof playResult.then === 'function'){
+        playResult.then(afterPlayStarted, () => { handlePlayFailure(); });
+      }else{
+        afterPlayStarted();
+      }
+    };
 
     if(consumedPreloaded){
       bufferIndex = consumedPreloaded.bufferIndex;
-      video = this.videoEls[bufferIndex];
-      this.preloaded = null;
-      this.preloadPromise = null;
-    }else{
-      this.preloaded = null;
-      this.preloadPromise = null;
-      bufferIndex = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
-      if(bufferIndex == null || bufferIndex === undefined){ return; }
-      const ok = await this.loadIntoBuffer(bufferIndex, item, token);
-      if(token !== this.playToken) return;
+      video = self.videoEls[bufferIndex];
+      self.preloaded = null;
+      self.preloadPromise = null;
+      proceedWithVideo();
+      return dfd.promise();
+    }
+
+    self.preloaded = null;
+    self.preloadPromise = null;
+    bufferIndex = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
+    if(bufferIndex == null || bufferIndex === undefined){
+      dfd.resolve();
+      return dfd.promise();
+    }
+
+    self.loadIntoBuffer(bufferIndex, item, token).then(ok => {
+      if(token !== self.playToken){ dfd.resolve(); return; }
       if(ok === false){
-        // 로드 실패 -> 다음 아이템으로 스킵
         const nextIndex = (normalizedIndex + 1) % playlistLength;
-        this.startPlaybackAtIndex(nextIndex);
+        self.startPlaybackAtIndex(nextIndex);
+        dfd.resolve();
         return;
       }
-      video = this.videoEls[bufferIndex];
+      video = self.videoEls[bufferIndex];
       if(video){
         try{ video.currentTime = 0; }catch(e){}
       }
-    }
+      proceedWithVideo();
+    });
 
-    if(!video) return;
-
-    this.setActiveBuffer(bufferIndex);
-    if(!(consumedPreloaded && consumedPreloaded.hasStarted)){
-      try{ video.currentTime = 0; }catch(e){}
-    }
-    try{
-      video.removeAttribute('muted'); video.volume = 1;
-+      await video.play();
-    }catch(e){
-      // 재생 자체가 거부/실패 → 다음 아이템으로 스킵
-      const nextIndex = (normalizedIndex + 1) % playlistLength;
-      this.startPlaybackAtIndex(nextIndex);
-      return;
-    }
-
-    // 재생 중 소스 에러 발생 시 다음으로 스킵
-    const playTokenSnap = this.playToken;
-    const onErr = () => {
-      video.removeEventListener('error', onErr);
-      if (playTokenSnap === this.playToken){
-        const nextIndex = (normalizedIndex + 1) % playlistLength;
-        this.startPlaybackAtIndex(nextIndex);
-      }
-    };
-    video.addEventListener('error', onErr, { once:true });
-
-    this.idx = normalizedIndex;
-    if(!isEvent){
-      this.pendingResumeIndex = normalizedIndex;
-    }
-
-    if(isEvent){
-      const duration = this.durationFor(item);
-      const eventToken = this.playToken;
-      this.swapTimer = setTimeout(()=>{
-        if(eventToken !== this.playToken) return;
-        this.isEventPlaying = false;
-        const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
-        this.startPlaybackAtIndex(resumeIndex);
-      }, Math.max(duration * 1000, 0));
-      return;
-    }
-
-    const duration = this.durationFor(item);
-    const nextIndex = (normalizedIndex + 1) % playlistLength;
-
-    if(this.videoEls.length > 1){
-      const preloadToken = this.playToken;
-      this.preloadPromise = this.preloadItemAtIndex(nextIndex, preloadToken);
-      const lead = Math.min(duration, this.preRollLeadSeconds);
-      const preRollDelay = Math.max((duration - lead) * 1000, 0);
-      this.prerollTimer = setTimeout(()=>{
-        this.triggerPreRoll(preloadToken, nextIndex);
-      }, preRollDelay);
-    }else{
-      this.preloadPromise = null;
-    }
-
-    const swapToken = this.playToken;
-    this.swapTimer = setTimeout(()=>{
-      this.completeSwap(swapToken, nextIndex);
-    }, Math.max(duration * 1000, 0));
+    return dfd.promise();
   }
-  async playItem(item, options = {}){
-    if(!item) return;
+  playItem(item, options = {}){
+    if(!item) return resolvedPromise();
     const index = options.index != null ? options.index : this.items.indexOf(item);
-    if(index < 0){ return; }
-    await this.startPlaybackAtIndex(index, options);
+    if(index < 0){ return resolvedPromise(); }
+    return this.startPlaybackAtIndex(index, options);
   }
   next(){
     if(this.items.length === 0) return;
@@ -393,8 +496,8 @@ class LeftVideoLoop {
     this.idx = 0;
     this.startPlaybackAtIndex(0);
   }
-  async playEventOnce(item){
-    if(!item) return;
+  playEventOnce(item){
+    if(!item) return resolvedPromise();
     this.isEventPlaying = true;
     this.pendingResumeIndex = this.idx;
     this.clearTimers();
@@ -402,10 +505,10 @@ class LeftVideoLoop {
     this.preloadPromise = null;
     const token = ++this.playToken;
     const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
-    if(targetIdx == null || targetIdx === undefined){ return; }
-    const ok = await this.loadIntoBuffer(targetIdx, item, token);
-    if(token !== this.playToken) return;
-    if(ok === false){
+    if(targetIdx == null || targetIdx === undefined){ return resolvedPromise(); }
+    return this.loadIntoBuffer(targetIdx, item, token).then(ok => {
+      if(token !== this.playToken) return;
+      if(ok === false){
       // 이벤트 소스가 에러면 이벤트를 건너뛰고 원래 재생 복귀
       this.isEventPlaying = false;
       const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
@@ -413,25 +516,39 @@ class LeftVideoLoop {
       return;
     }
 
-    this.setActiveBuffer(targetIdx);
-    const video = this.videoEls[targetIdx];
-    if(video){
-      try{ video.currentTime = 0; }catch(e){}
-      try{ video.removeAttribute('muted');video.volume = 1;video.play().catch(()=>{}); }catch(e){}
-    }
-    const duration = this.durationFor(item);
-    const resumeToken = this.playToken;
-    this.swapTimer = setTimeout(()=>{
-      if(resumeToken !== this.playToken) return;
-      this.isEventPlaying = false;
-      const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
-      this.startPlaybackAtIndex(resumeIndex);
-    }, Math.max(duration * 1000, 0));
+      this.setActiveBuffer(targetIdx);
+      const video = this.videoEls[targetIdx];
+      if(video){
+        try{ video.currentTime = 0; }catch(e){}
+        try{
+          video.removeAttribute('muted');
+          video.volume = 1;
+          const playResult = video.play();
+          if(playResult && typeof playResult.then === 'function'){
+            playResult.then(()=>{}, ()=>{});
+          }
+        }catch(e){}
+      }
+      const duration = this.durationFor(item);
+      const resumeToken = this.playToken;
+      this.swapTimer = setTimeout(()=>{
+        if(resumeToken !== this.playToken) return;
+        this.isEventPlaying = false;
+        const resumeIndex = this.pendingResumeIndex % Math.max(this.items.length, 1);
+        this.startPlaybackAtIndex(resumeIndex);
+      }, Math.max(duration * 1000, 0));
+    });
   }
   ensurePlaying(){
     const video = this.videoEls[this.activeBufferIndex];
     if(video && video.paused){
-      video.volume = 1;video.play().catch(()=>{});
+      try{
+        video.volume = 1;
+        const playResult = video.play();
+        if(playResult && typeof playResult.then === 'function'){
+          playResult.then(()=>{}, ()=>{});
+        }
+      }catch(e){}
     }
   }
 }
@@ -469,58 +586,68 @@ class RightImageLoop {
     this.hasActiveContent = true;
   }
 
-  async preloadItemAtIndex(index, token){
-    if(this.imageEls.length <= 1) return;
+  preloadItemAtIndex(index, token){
+    if(this.imageEls.length <= 1) return resolvedPromise();
     const item = this.items[index % this.items.length];
-    if(!item) return;
+    if(!item) return resolvedPromise();
     const standbyIdx = this.getStandbyIndex();
-    if(standbyIdx === this.activeBufferIndex) return;
+    if(standbyIdx === this.activeBufferIndex) return resolvedPromise();
     const img = this.imageEls[standbyIdx];
     const src = (item.fileURL || '').trim();
-    const ok = await setImageSource(img, src);
-    if(token !== this.preloadToken) return;
-    if(!ok) return;
-    this.preloaded = { index: index % this.items.length, bufferIndex: standbyIdx };
+    return setImageSource(img, src).then(ok => {
+      if(token !== this.preloadToken) return;
+      if(!ok) return;
+      this.preloaded = { index: index % this.items.length, bufferIndex: standbyIdx };
+    });
   }
 
-  async showItem(item){
-     if(!item || this.imageEls.length === 0) return;
-     this.clearTimer();
-     const token = ++this.loadToken;
-    let usedPreloaded = false;
+  showItem(item){
+    if(!item || this.imageEls.length === 0) return resolvedPromise();
+    this.clearTimer();
+    const dfd = $.Deferred();
+    const token = ++this.loadToken;
+
+    const scheduleNext = () => {
+      const duration = Number.isFinite(item.ptime) ? Math.max(item.ptime, 0.1) : 10;
+
+      if(this.imageEls.length > 1){
+        const nextIndex = (this.idx + 1) % this.items.length;
+        const lead = Math.min(duration, this.preRollLeadSeconds);
+        const delay = Math.max((duration - lead) * 1000, 0);
+        const preloadToken = ++this.preloadToken;
+        setTimeout(()=>{
+          this.preloadItemAtIndex(nextIndex, preloadToken);
+        }, delay);
+      }
+
+      this.timer = setTimeout(()=>{ this.next(); }, duration * 1000);
+      dfd.resolve();
+    };
 
     if(this.preloaded && this.preloaded.index === (this.idx % this.items.length)){
-      if(token !== this.loadToken) return;
+      if(token !== this.loadToken){ dfd.resolve(); return dfd.promise(); }
       this.setActiveBuffer(this.preloaded.bufferIndex);
       this.preloaded = null;
-      usedPreloaded = true;
-    } else {
-      const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
-      const img = this.imageEls[targetIdx];
-      const src = (item.fileURL || '').trim();
-      const ok = await setImageSource(img, src);
-      if(token !== this.loadToken) return;
+      scheduleNext();
+      return dfd.promise();
+    }
+
+    const targetIdx = this.hasActiveContent ? this.getStandbyIndex() : this.activeBufferIndex;
+    const img = this.imageEls[targetIdx];
+    const src = (item.fileURL || '').trim();
+    setImageSource(img, src).then(ok => {
+      if(token !== this.loadToken){ dfd.resolve(); return; }
       if(!ok){
         this.nextIdx();
         this.showItem(this.current());
+        dfd.resolve();
         return;
       }
       this.setActiveBuffer(targetIdx);
-    }
+      scheduleNext();
+    });
 
-    const duration = Number.isFinite(item.ptime) ? Math.max(item.ptime, 0.1) : 10;
-
-    if(this.imageEls.length > 1){
-      const nextIndex = (this.idx + 1) % this.items.length;
-      const lead = Math.min(duration, this.preRollLeadSeconds);
-      const delay = Math.max((duration - lead) * 1000, 0);
-      const preloadToken = ++this.preloadToken;
-      setTimeout(()=>{
-        this.preloadItemAtIndex(nextIndex, preloadToken);
-      }, delay);
-    }
-
-    this.timer = setTimeout(()=>{ this.next(); }, duration * 1000);
+    return dfd.promise();
   }
   next(){
     this.nextIdx();
@@ -574,36 +701,34 @@ class EventWatcher {
   }
 }
 
-(async function initDID(){
+(function initDID(){
   startClock();
 
-  // XML 로드
-  const { NAME, L, R, E } = await loadKioskXml();
-  const nameEl = document.querySelector('.video_area .wait .name');
-  if(nameEl){
-    nameEl.textContent = NAME || '';
-    nameEl.style.display = NAME ? '' : 'none';
-  }
-
-  // 동영상 확장자 필터링
-  const leftVideos = L.filter(it => /\.mp4(\?.*)?$/i.test(it.fileURL));
-  // 이미지 확장자 필터링
-  const rightImages = R.filter(it => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(it.fileURL));
-
-  // 컨트롤러 생성/시작
-  const left = new LeftVideoLoop(leftVideos, videoBuffers);
-  const right = new RightImageLoop(rightImages, imageBuffers);
-  left.start();
-  right.start();
-
-  // 이벤트 감시 시작(동영상)
-  const watcher = new EventWatcher(E, left);
-  watcher.start();
-
-  // 창 포커스 손실 시(옵션) 영상 멈춤 방지 재개
-  window.addEventListener('visibilitychange', ()=>{
-    if(!document.hidden){
-      left.ensurePlaying();
+  loadKioskXml().then(data => {
+    const { NAME = '', L = [], R = [], E = [] } = data || {};
+    const nameEl = document.querySelector('.video_area .wait .name');
+    if(nameEl){
+      nameEl.textContent = NAME || '';
+      nameEl.style.display = NAME ? '' : 'none';
     }
+
+    const leftVideos = L.filter(it => /\.mp4(\?.*)?$/i.test(it.fileURL));
+    const rightImages = R.filter(it => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(it.fileURL));
+
+    const left = new LeftVideoLoop(leftVideos, videoBuffers);
+    const right = new RightImageLoop(rightImages, imageBuffers);
+    left.start();
+    right.start();
+
+    const watcher = new EventWatcher(E, left);
+    watcher.start();
+
+    window.addEventListener('visibilitychange', ()=>{
+      if(!document.hidden){
+        left.ensurePlaying();
+      }
+    });
+  }).fail(err => {
+    console.error('Failed to initialize DID', err);
   });
 })();
