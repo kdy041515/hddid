@@ -7,38 +7,181 @@
 
 
 //////////////////////////////////////////////////////////////
-// 리턴할 페이지 불러오기
-function setLoadContents(p_url,p_fnc){
-    var xml_http;
-    if (window.XMLHttpRequest){
-        xml_http = new XMLHttpRequest();
-    }else{
-        xml_http = new ActiveXObject("Microsoft.XMLHTTP");
+// 내부 상태 관리
+var __xml_load_state = 0; // 0:init,1:loading,2:ready,3:error
+var __xml_load_error = null;
+var __xml_success_callbacks = [];
+var __xml_error_callbacks = [];
+var __xml_serialized_text = '';
+
+function __pushSuccessCallback(fn){
+    if (typeof fn === 'function') {
+        __xml_success_callbacks.push(fn);
     }
-    xml_http.open("GET",p_url,true);
-    xml_http.onreadystatechange = function(){
-        onReadXmlContents(xml_http,p_fnc);
+}
+
+function __pushErrorCallback(fn){
+    if (typeof fn === 'function') {
+        __xml_error_callbacks.push(fn);
+    }
+}
+
+function __flushSuccessCallbacks(data){
+    var list = __xml_success_callbacks.slice();
+    __xml_success_callbacks.length = 0;
+    for (var i = 0; i < list.length; i++) {
+        try { list[i](data); } catch (e) { }
+    }
+}
+
+function __flushErrorCallbacks(err){
+    var list = __xml_error_callbacks.slice();
+    __xml_error_callbacks.length = 0;
+    for (var i = 0; i < list.length; i++) {
+        try { list[i](err); } catch (e) { }
+    }
+}
+
+//////////////////////////////////////////////////////////////
+// 리턴할 페이지 불러오기 (iframe 기반, AJAX 미사용)
+function setLoadContents(p_url,p_fnc){
+    if (__xml_load_state === 2) {
+        if (typeof p_fnc === 'function') {
+            try { p_fnc(window.xml_data); } catch (e) { }
+        }
+        return;
+    }
+
+    if (__xml_load_state === 3) {
+        if (typeof p_fnc === 'function') {
+            try { p_fnc(window.xml_data); } catch (e) { }
+        }
+        return;
+    }
+
+    __pushSuccessCallback(p_fnc);
+
+    if (__xml_load_state === 1) {
+        return;
+    }
+
+    __xml_load_state = 1;
+
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('tabindex', '-1');
+    iframe.src = p_url;
+
+    function cleanup(){
+        try {
+            if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        } catch (e) { }
+    }
+
+    iframe.onload = function(){
+        var doc = null;
+        try {
+            doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+            if (!doc) {
+                throw new Error('NO_DOCUMENT');
+            }
+            onReadXmlContents(doc, null);
+            __xml_load_error = null;
+            __xml_load_state = 2;
+            __flushSuccessCallbacks(window.xml_data);
+        } catch (err) {
+            __xml_load_state = 3;
+            __xml_load_error = err;
+            setTxtError("INIT", "Error!!<br>Please retry");
+            __flushErrorCallbacks(err);
+        }
+        cleanup();
     };
-    xml_http.send();
+
+    iframe.onerror = function(){
+        __xml_load_state = 3;
+        __xml_load_error = new Error('IFRAME_LOAD_ERROR');
+        setTxtError("INIT", "Error!!<br>Please retry");
+        __flushErrorCallbacks(__xml_load_error);
+        cleanup();
+    };
+
+    try {
+        (document.body || document.documentElement).appendChild(iframe);
+    } catch (e) {
+        setTimeout(function(){
+            try {
+                (document.body || document.documentElement).appendChild(iframe);
+            } catch (err) {
+                __xml_load_state = 3;
+                __xml_load_error = err;
+                setTxtError("INIT", "Error!!<br>Please retry");
+                __flushErrorCallbacks(err);
+            }
+        }, 0);
+    }
+}
+
+function __serializeXmlDocument(doc){
+    var serialized = '';
+    if (!doc) {
+        return serialized;
+    }
+    if (window.XMLSerializer) {
+        try {
+            serialized = new XMLSerializer().serializeToString(doc);
+        } catch (e) {
+            serialized = '';
+        }
+    }
+    if (!serialized && doc.xml) {
+        serialized = String(doc.xml);
+    }
+    if (!serialized && doc.documentElement && doc.documentElement.outerHTML) {
+        serialized = String(doc.documentElement.outerHTML);
+    }
+    if (serialized && serialized.indexOf('<?xml') !== 0) {
+        serialized = '<?xml version="1.0" encoding="utf-8"?>' + serialized;
+    }
+    return serialized;
 }
 
 function onReadXmlContents(p_xml, p_fnc) {
-    var ret_code = "FAIL";
-    if (p_xml.readyState != 4) {
-        return;
-    }
-    if (p_xml.status != 200) {
+    var xml_doc = null;
+    if (!p_xml) {
         setTxtError("INIT", "Error!!<br>Please retry");
-        return;
+        throw new Error('INVALID_XML_SOURCE');
+    }
+    if (p_xml.nodeType === 9) {
+        xml_doc = p_xml;
+    } else if (p_xml.responseXML) {
+        if (p_xml.readyState != 4) {
+            return;
+        }
+        if (p_xml.status != 200) {
+            setTxtError("INIT", "Error!!<br>Please retry");
+            throw new Error('XML_HTTP_STATUS');
+        }
+        xml_doc = p_xml.responseXML;
+    } else if (p_xml.documentElement) {
+        xml_doc = p_xml;
+    }
+
+    if (!xml_doc) {
+        setTxtError("INIT", "Error!!<br>Please retry");
+        throw new Error('XML_DOCUMENT_EMPTY');
     }
 
     try {
-        var xml_doc = p_xml.responseXML;
-
         var root_node = xml_doc.getElementsByTagName("KIOSK")[0];
         if (!root_node) {
             setTxtError("INIT", "Error!!<br>Please retry");
-            return;
+            throw new Error('XML_ROOT_NOT_FOUND');
         }
         var xml_data = new Object();
         xml_data.header = new Object();
@@ -224,14 +367,20 @@ function onReadXmlContents(p_xml, p_fnc) {
 
             child1 = child1.nextSibling;
         }
+        window.xml_data = xml_data;
+        __xml_serialized_text = __serializeXmlDocument(xml_doc);
+        window.KIOSK_XML_TEXT = __xml_serialized_text;
+
+        if (typeof p_fnc === 'function') {
+            p_fnc(xml_data);
+        }
+        console.log(xml_data);
+        return xml_data;
     } catch (err) {
         console.log("ERR PARSE XML");
         console.log(err);
-        return;
+        throw err;
     }
-
-    p_fnc(xml_data);
-    console.log(xml_data)
 }
 
 
@@ -239,3 +388,58 @@ function onReadXmlContents(p_xml, p_fnc) {
 function setTxtError(p_type,p_msg){
     console.log("setTxtError = " + p_type + " , " + p_msg);
 }
+
+
+;(function(window, document, $){
+    'use strict';
+
+    function createDeferred(){
+        if ($ && $.Deferred) {
+            return $.Deferred();
+        }
+        var resolved = false;
+        var rejected = false;
+        var value = null;
+        return {
+            resolve: function(v){ resolved = true; value = v; },
+            reject: function(e){ rejected = true; value = e; },
+            promise: function(){ return this; },
+            done: function(fn){ if (resolved) { try { fn(value); } catch (e) { } } return this; },
+            fail: function(fn){ if (rejected) { try { fn(value); } catch (e) { } } return this; }
+        };
+    }
+
+    window.KioskXmlScript = {
+        load: function(){
+            var dfd = createDeferred();
+
+            if (__xml_load_state === 2) {
+                dfd.resolve(__xml_serialized_text);
+                return dfd.promise ? dfd.promise() : dfd;
+            }
+
+            if (__xml_load_state === 3) {
+                dfd.reject(__xml_load_error || new Error('XML_LOAD_FAIL'));
+                return dfd.promise ? dfd.promise() : dfd;
+            }
+
+            __pushSuccessCallback(function(){
+                dfd.resolve(__xml_serialized_text);
+            });
+            __pushErrorCallback(function(err){
+                dfd.reject(err || new Error('XML_LOAD_FAIL'));
+            });
+
+            setLoadContents('./xml/kiosk_contents.xml');
+
+            return dfd.promise ? dfd.promise() : dfd;
+        },
+        getText: function(){
+            return __xml_serialized_text;
+        }
+    };
+
+    // 초기 로드 시도
+    setLoadContents('./xml/kiosk_contents.xml');
+
+})(window, document, window.jQuery);

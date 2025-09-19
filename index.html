@@ -90,7 +90,8 @@
     </div>
 </body>
 <script src="./assets/js/splide.js"></script>
-<script src="./assets/js/splide-extension-grid.min.js"></script> 
+<script src="./assets/js/splide-extension-grid.min.js"></script>
+<script src="./assets/js/xml.js"></script>
 <script src="./assets/js/index.js"></script>
 <script>
     var slide = new Splide("#status_slide", {
@@ -110,13 +111,6 @@
     });
     slide.mount(window.splide.Extensions);
 
-
-    function setInit() {
-        setLoadContents("xml/kiosk_contents.xml", setInitSetting); 
-    }
-    window.addEventListener('DOMContentLoaded', function () {
-        setTimeout(setInit, 50);
-    });
 
 </script>
 </html>
