@@ -13,7 +13,6 @@
   // =========================
   // 환경 설정
   // =========================
-  var KIOSK_XML_URL = './xml/kiosk_contents.xml';
   var KST_OFFSET_MINUTES = 9 * 60; // Asia/Seoul UTC+9
   var BASE = (function(){
     try{
@@ -155,94 +154,22 @@
   // =========================
   function loadKioskXml(){
     var dfd = $.Deferred();
-    var iframe = document.createElement('iframe');
-    var cleaned = false;
-    var settled = false;
-
-    function cleanup(){
-      if(cleaned) return;
-      cleaned = true;
+    delay(0).then(function(){
       try{
-        iframe.onload = iframe.onerror = null;
-        if(iframe.parentNode){ iframe.parentNode.removeChild(iframe); }
-      }catch(_){ }
-    }
-
-    function finish(ok, payload){
-      if(settled) return;
-      settled = true;
-      cleanup();
-      if(ok){ dfd.resolve(payload); }
-      else { dfd.reject(payload); }
-    }
-
-    iframe.style.display = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.tabIndex = -1;
-
-    iframe.onload = function(){
-      try{
-        var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document) || null;
-        if(!doc){
-          error('[XML] iframe has no document');
-          finish(false, 'XML_IFRAME_NO_DOCUMENT');
-          return;
-        }
-
-        var txt = '';
-        if(window.XMLSerializer){
-          try{
-            txt = new XMLSerializer().serializeToString(doc);
-          }catch(_){ }
-        }
-        if(!txt && doc.documentElement){
-          if(typeof doc.documentElement.outerHTML === 'string'){
-            txt = doc.documentElement.outerHTML;
-          }else if(window.XMLSerializer){
-            try{ txt = new XMLSerializer().serializeToString(doc.documentElement); }
-            catch(_){ }
-          }
-        }
-        if(!txt && doc.body){
-          txt = doc.body.textContent || doc.body.innerText || '';
-        }
-
+        var txt = window.KIOSK_XML_TEXT;
         if(typeof txt !== 'string' || !txt.length){
-          error('[XML] iframe payload empty');
-          finish(false, 'XML_IFRAME_EMPTY');
+          error('[XML] window.KIOSK_XML_TEXT missing');
+          dfd.reject('XML_SCRIPT_EMPTY');
           return;
         }
-
         var data = parseXmlText(txt);
-        log('[XML] iframe parsed');
-        finish(true, data);
+        log('[XML] script payload parsed');
+        dfd.resolve(data);
       }catch(e){
-        error('[XML] parse error (iframe)', e);
-        finish(false, e);
+        error('[XML] parse error (script payload)', e);
+        dfd.reject(e);
       }
-    };
-
-    iframe.onerror = function(){
-      error('[XML] iframe load fail');
-      finish(false, 'XML_IFRAME_LOAD_FAIL');
-    };
-
-    var target = document.body || document.documentElement || document.head;
-    if(!target){
-      finish(false, 'XML_IFRAME_NO_TARGET');
-      return dfd.promise();
-    }
-
-    var src = cacheBust(absolutize(KIOSK_XML_URL));
-    log('[XML] IFRAME', src);
-    iframe.src = src;
-    try{
-      target.appendChild(iframe);
-    }catch(e){
-      error('[XML] iframe append fail', e);
-      finish(false, e);
-    }
-
+    });
     return dfd.promise();
   }
 
