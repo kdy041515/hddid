@@ -148,88 +148,140 @@
   }
 
   // =========================
-  // XML 로딩 (DOM 파서 대신 텍스트/정규식)
-  //   구조 예)
-  //   <NOTICE_LIST_L> ... <NOTICE_INFO> <SCH_TYPE stime="09:00" etime="18:00" /> <FRAME_LIST ptime="10"><FRAME_INFO fileURL="..."/></FRAME_LIST> </NOTICE_INFO> ... </NOTICE_LIST_L>
+  // xml.js 연동 (Android 5 WebView 호환)
   // =========================
-  function loadKioskXml(){
+  function waitForXmlData(timeoutMs){
+    if(window.xml_data && typeof window.xml_data === 'object'){
+      return resolved(window.xml_data);
+    }
+
     var dfd = $.Deferred();
-    var loader = window.KioskXmlScript;
+    var done = false;
+    var pollTimer = null;
+    var timeoutTimer = null;
+    var limit = typeof timeoutMs === 'number' ? timeoutMs : 20000;
 
-    function handleText(txt){
-      try{
-        if(typeof txt !== 'string' || !txt.length){
-          error('[XML] script payload empty');
-          dfd.reject('XML_SCRIPT_EMPTY');
-          return;
-        }
-        var data = parseXmlText(txt);
-        log('[XML] script payload parsed');
-        dfd.resolve(data);
-      }catch(e){
-        error('[XML] parse error (script payload)', e);
-        dfd.reject(e);
+    function finish(data, ok){
+      if(done){ return; }
+      done = true;
+      if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+      if(timeoutTimer){ clearTimeout(timeoutTimer); timeoutTimer = null; }
+      if(typeof $ === 'function' && $.fn && $.fn.off){
+        $(document).off('xmlDataReady.index');
+      }
+      if(ok === false){ dfd.reject(data); }
+      else{ dfd.resolve(data); }
+    }
+
+    function handleIncoming(data){
+      if(!data && window.xml_data && typeof window.xml_data === 'object'){
+        data = window.xml_data;
+      }
+      if(data && typeof data === 'object'){
+        finish(data, true);
       }
     }
 
-    if(loader && typeof loader.load === 'function'){
-      try{
-        loader.load()
-          .done(function(txt){ handleText(txt); })
-          .fail(function(err){
-            error('[XML] script loader fail', err);
-            dfd.reject(err || 'XML_SCRIPT_LOAD_FAIL');
-          });
-      }catch(e){
-        error('[XML] script loader exception', e);
-        dfd.reject(e);
-      }
-    }else{
-      delay(0).then(function(){ handleText(window.KIOSK_XML_TEXT); });
+    if(typeof $ === 'function' && $.fn && $.fn.on){
+      $(document).on('xmlDataReady.index', function(evt, data){
+        $(document).off('xmlDataReady.index');
+        handleIncoming(data);
+      });
     }
+
+    pollTimer = setInterval(function(){
+      if(window.xml_data && typeof window.xml_data === 'object'){
+        handleIncoming(window.xml_data);
+      }
+    }, 200);
+
+    timeoutTimer = setTimeout(function(){
+      finish('XML_DATA_TIMEOUT', false);
+    }, limit);
 
     return dfd.promise();
   }
 
-  function parseXmlText(txt){
-    var data = { NAME:'', L:[], R:[], E:[] };
+  function toArray(obj){
+    if(!obj){ return []; }
+    if(obj instanceof Array){ return obj; }
+    if(typeof Array.isArray === 'function' && Array.isArray(obj)){ return obj; }
+    return [obj];
+  }
 
-    // BRN_NAME
-    var mName = txt.match(/<BRN_NAME>\s*<!\[CDATA\[(.*?)\]\]>\s*<\/BRN_NAME>|<BRN_NAME>(.*?)<\/BRN_NAME>/i);
-    data.NAME = (mName && (mName[1] || mName[2])) ? (mName[1] || mName[2]).replace(/^\s+|\s+$/g,'') : '';
+  function sanitizeUrl(url){
+    if(!url){ return ''; }
+    return String(url).replace(/^\s+|\s+$/g, '');
+  }
 
-    function pick(listTag){
-      var out=[];
-      var secRe = new RegExp('<'+listTag+'[\\s\\S]*?<\\/'+listTag+'>','i');
-      var sec = (txt.match(secRe)||[''])[0] || '';
-      if(!sec) return out;
+  function normalizeTime(value){
+    if(!value){ return ''; }
+    var str = String(value);
+    if(str.indexOf(':') !== -1){ return str; }
+    var digits = str.replace(/[^0-9]/g, '');
+    if(digits.length === 4){ return digits.substr(0,2) + ':' + digits.substr(2,2); }
+    if(digits.length === 3){ return '0' + digits.substr(0,1) + ':' + digits.substr(1,2); }
+    if(digits.length === 2){ return digits + ':00'; }
+    if(digits.length === 1){ return '0' + digits + ':00'; }
+    return str;
+  }
 
-      var infoRe = /<NOTICE_INFO\b[\s\S]*?<\/NOTICE_INFO>/gi, infoMatch;
-      while((infoMatch = infoRe.exec(sec))){
-        var block = infoMatch[0];
+  function pickPtime(first, second, fallback){
+    var n1 = parseFloat(first);
+    if(isFinite(n1) && n1 > 0){ return n1; }
+    var n2 = parseFloat(second);
+    if(isFinite(n2) && n2 > 0){ return n2; }
+    if(isFinite(fallback) && fallback > 0){ return fallback; }
+    return 10;
+  }
 
-        // ptime
-        var ptime = 10, mp = block.match(/<FRAME_LIST[^>]*\bptime="([^"]+)"/i);
-        if(mp){ var num=parseFloat(mp[1]); if(isFinite(num)) ptime=num; }
-
-        // stime/etime
-        var mst = block.match(/<SCH_TYPE[^>]*\bstime="([^"]+)"[^>]*\betime="([^"]+)"/i);
-        var stime = mst ? mst[1] : '';
-        var etime = mst ? mst[2] : '';
-
-        // fileURL (첫 개체만 사용)
-        var mf = block.match(/\bfileURL\s*=\s*"([^"]+)"/i);
-        var fileURL = mf ? mf[1] : '';
-
-        out.push({ conName:'', stime:stime, etime:etime, ptime:ptime, fileURL:absolutize(String(fileURL||'').replace(/^\s+|\s+$/g,'')) });
+  function convertNoticeList(list){
+    var out = [];
+    var arr = toArray(list);
+    for(var i=0;i<arr.length;i++){
+      var item = arr[i];
+      if(!item){ continue; }
+      var frames = toArray(item.FRAME_LIST);
+      var stime = normalizeTime(item.STIME);
+      var etime = normalizeTime(item.ETIME);
+      for(var j=0;j<frames.length;j++){
+        var frame = frames[j];
+        if(!frame){ continue; }
+        var url = sanitizeUrl(frame.FILE_URL);
+        if(!url){ continue; }
+        out.push({
+          noticeId: item.NOTICE_ID || '',
+          noticeName: item.NOTICE_NAME || '',
+          stime: stime,
+          etime: etime,
+          ptime: pickPtime(frame.PTIME, item.PTIME, 10),
+          fileURL: url,
+          type: frame.TYPE || ''
+        });
       }
-      return out;
     }
+    return out;
+  }
 
-    data.L = pick('NOTICE_LIST_L');
-    data.R = pick('NOTICE_LIST_R');
-    data.E = pick('NOTICE_LIST_E');
+  function transformXmlData(raw){
+    var data = { header:{}, L:[], R:[], E:[] };
+    if(!raw || typeof raw !== 'object'){ return data; }
+    data.header = raw.header || {};
+    data.L = convertNoticeList(raw.arr_notice_list_l);
+    data.R = convertNoticeList(raw.arr_notice_list_r);
+    data.E = convertNoticeList(raw.arr_notice_list_e);
     return data;
+  }
+
+  function applyHeaderInfo(header){
+    if(!header){ return; }
+    try{
+      var name = header.KIOSK_NOTICE || header.BRN_NAME || '';
+      if(name){
+        var waitName = document.querySelector('.video_area .wait .name');
+        if(waitName){ waitName.textContent = name; }
+      }
+    }catch(_){}
   }
 
   // =========================
@@ -392,8 +444,11 @@
   function boot(){
     startClock();
 
-    loadKioskXml().then(function(data){
-      log('[XML] parsed', data);
+    waitForXmlData().then(function(raw){
+      var data = transformXmlData(raw);
+      applyHeaderInfo(data.header);
+      log('[XML] ready', data);
+
       // 좌: 동영상, 우: 이미지, 이벤트: 좌 우선 중단
       var left = new LeftVideoLoop(data.L, videoBuffers);
       var right = new RightImageLoop(data.R, imageBuffers);
@@ -408,7 +463,7 @@
       }
     })
     .fail(function(err){
-      error('[BOOT] XML failed → fallback empty rotation', err);
+      error('[BOOT] XML data unavailable → fallback empty rotation', err);
       // fallback: 빈 루프라도 킵 (디버깅 가시화)
       (function blinkError(){
         var el = document.getElementById('error_text');
