@@ -1,81 +1,165 @@
-(function(window){
-  window.KIOSK_XML_TEXT = [
-    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-    "<KIOSK>\n"
-    "    <HEADER>\n"
-    "        <MAKE_TIME>20250909145655</MAKE_TIME>\n"
-    "        <RET_CODE>SUCC</RET_CODE>\n"
-    "        <BRN_NAME>블루핸즈 마포점</BRN_NAME>\n"
-    "        <BRN_CODE>NO1</BRN_CODE>\n"
-    "        <KIOSK_ID>1</KIOSK_ID>\n"
-    "        <KIOSK_CODE>D1</KIOSK_CODE>\n"
-    "        <KIOSK_NAME>블루핸즈 마포점 가로</KIOSK_NAME>\n"
-    "        <SCH_ID>91</SCH_ID>\n"
-    "        <DID_TYPE>55</DID_TYPE>\n"
-    "        <DID_DIVISION>V</DID_DIVISION>\n"
-    "        <KIOSK_WIDTH>1920</KIOSK_WIDTH>\n"
-    "        <KIOSK_HEIGHT>1080</KIOSK_HEIGHT>\n"
-    "        <URL_STATUS><![CDATA[http://ktis.tovair.com/user/xml/kiosk_status.jsp]]></URL_STATUS>\n"
-    "        <KIOSK_NOTICE>안녕하세요. 블루핸즈 마포점 입니다.</KIOSK_NOTICE>\n"
-    "        <APT_LATITUDE>37.44647931</APT_LATITUDE>\n"
-    "        <APT_LONGITUDE>127.1298798</APT_LONGITUDE>\n"
-    "        <APT_CITY>gyeonggi</APT_CITY>\n"
-    "    </HEADER>\n"
-    "    <NOTICE_LIST_L>\n"
-    "        <NOTICE_INFO id=\"0\">\n"
-    "            <CON_NAME><![CDATA[동영상1]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250825\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"107.0\" >\n"
-    "                <FRAME_INFO id=\"1\" x=\"0\" y=\"0\" width=\"1520\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/L/sample4.mp4\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "        <NOTICE_INFO id=\"1\">\n"
-    "            <CON_NAME><![CDATA[동영상2]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250909\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"167.0\" >\n"
-    "                <FRAME_INFO id=\"2\" x=\"0\" y=\"0\" width=\"1520\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/L/sample2.mp4\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "        <NOTICE_INFO id=\"2\">\n"
-    "            <CON_NAME><![CDATA[동영상3]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250909\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"35.0\" >\n"
-    "                <FRAME_INFO id=\"3\" x=\"0\" y=\"0\" width=\"1520\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/L/sample3.mp4\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "        <NOTICE_INFO id=\"3\">\n"
-    "            <CON_NAME><![CDATA[동영상3]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250909\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"60.0\" >\n"
-    "                <FRAME_INFO id=\"3\" x=\"0\" y=\"0\" width=\"1520\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/L/sample1.mp4\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "	</NOTICE_LIST_L>\n"
-    "	<NOTICE_LIST_R>\n"
-    "        <NOTICE_INFO id=\"0\">\n"
-    "            <CON_NAME><![CDATA[이미지1]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250825\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"10.0\" >\n"
-    "                <FRAME_INFO id=\"4\" x=\"0\" y=\"0\" width=\"400\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/R/sample1.jpg\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "        <NOTICE_INFO id=\"1\">\n"
-    "            <CON_NAME><![CDATA[이미지2]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250909\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"10.0\" >\n"
-    "                <FRAME_INFO id=\"5\" x=\"0\" y=\"0\" width=\"400\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/R/sample2.jpg\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "        <NOTICE_INFO id=\"2\">\n"
-    "            <CON_NAME><![CDATA[이미지3]]></CON_NAME>            \n"
-    "            <SCH_TYPE sday=\"20250909\" eday=\"20251231\" stime=\"0000\" etime=\"2359\"/>\n"
-    "            <FRAME_LIST ptime=\"10.0\" >\n"
-    "                <FRAME_INFO id=\"6\" x=\"0\" y=\"0\" width=\"400\" height=\"855\"  type=\"IMG\" fileURL=\"commonfiles/contents/R/sample3.jpg\"></FRAME_INFO>\n"
-    "                </FRAME_LIST>\n"
-    "        </NOTICE_INFO>\n"
-    "	</NOTICE_LIST_R>\n"
-    "	<NOTICE_LIST_E>\n"
-    "	</NOTICE_LIST_E>\n"
-    "</KIOSK>"
-  ].join("");
-})(window);
+/******************************************
+   name :  xml.js
+   auth :  ELTOV
+   date :  2022.08.25
+   desc :  xml 파싱 (iframe 기반, AJAX 미사용)
+*******************************************/
+
+;(function(window, document, $){
+    'use strict';
+
+    var STATE_INIT = 0;
+    var STATE_LOADING = 1;
+    var STATE_READY = 2;
+    var STATE_ERROR = 3;
+
+    var state = STATE_INIT;
+    var xmlText = '';
+    var errorValue = null;
+    var waitQueue = [];
+
+    function pushDeferred(dfd){
+        waitQueue.push(dfd);
+    }
+
+    function flushQueue(){
+        if(!waitQueue.length) return;
+        var list = waitQueue.slice();
+        waitQueue.length = 0;
+        var i;
+        if(state === STATE_READY){
+            for(i=0;i<list.length;i++){
+                try{ list[i].resolve(xmlText); }
+                catch(_){ }
+            }
+        }else if(state === STATE_ERROR){
+            for(i=0;i<list.length;i++){
+                try{ list[i].reject(errorValue); }
+                catch(_){ }
+            }
+        }
+    }
+
+    function ensureLoad(){
+        if(state === STATE_LOADING || state === STATE_READY || state === STATE_ERROR){
+            return;
+        }
+        state = STATE_LOADING;
+
+        var iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.width = '0px';
+        iframe.style.height = '0px';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.setAttribute('tabindex', '-1');
+        iframe.src = './xml/kiosk_contents.xml';
+
+        function cleanup(){
+            try{
+                if(iframe.parentNode){ iframe.parentNode.removeChild(iframe); }
+            }catch(_){ }
+        }
+
+        iframe.onload = function(){
+            var doc;
+            try{
+                doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+                if(!doc){ throw new Error('NO_DOCUMENT'); }
+                var serialized = '';
+                if(window.XMLSerializer){
+                    try{
+                        serialized = new XMLSerializer().serializeToString(doc);
+                    }catch(e){ serialized = ''; }
+                }
+                if(!serialized && doc.xml){
+                    serialized = String(doc.xml);
+                }
+                if(!serialized && doc.documentElement && doc.documentElement.outerHTML){
+                    serialized = String(doc.documentElement.outerHTML);
+                }
+                if(!serialized){
+                    throw new Error('SERIALIZE_FAIL');
+                }
+                if(serialized.indexOf('<?xml') !== 0){
+                    serialized = '<?xml version="1.0" encoding="utf-8"?>' + serialized;
+                }
+                xmlText = serialized;
+                window.KIOSK_XML_TEXT = xmlText;
+                state = STATE_READY;
+                cleanup();
+                flushQueue();
+            }catch(e){
+                errorValue = e || new Error('IFRAME_PARSE_ERROR');
+                state = STATE_ERROR;
+                cleanup();
+                flushQueue();
+            }
+        };
+
+        iframe.onerror = function(){
+            errorValue = new Error('IFRAME_LOAD_ERROR');
+            state = STATE_ERROR;
+            cleanup();
+            flushQueue();
+        };
+
+        var target = document.body || document.documentElement;
+        try{
+            target.appendChild(iframe);
+        }catch(_){
+            // body가 없을 경우 DOMContentLoaded 이후 재시도
+            setTimeout(function(){
+                try{
+                    (document.body || document.documentElement).appendChild(iframe);
+                }catch(e){
+                    errorValue = e;
+                    state = STATE_ERROR;
+                    flushQueue();
+                }
+            }, 0);
+        }
+    }
+
+    function createDeferred(){
+        if($ && $.Deferred){
+            return $.Deferred();
+        }
+        // 단순 폴백 (resolve/reject 호출만 지원)
+        var resolved = false;
+        var rejected = false;
+        var value;
+        return {
+            resolve: function(v){ resolved=true; value=v; },
+            reject: function(e){ rejected=true; value=e; },
+            promise: function(){ return this; },
+            done: function(fn){ if(resolved){ fn(value); } return this; },
+            fail: function(fn){ if(rejected){ fn(value); } return this; }
+        };
+    }
+
+    window.KioskXmlScript = {
+        load: function(){
+            var dfd = createDeferred();
+            if(state === STATE_READY){
+                dfd.resolve(xmlText);
+                return dfd.promise ? dfd.promise() : dfd;
+            }
+            if(state === STATE_ERROR){
+                dfd.reject(errorValue);
+                return dfd.promise ? dfd.promise() : dfd;
+            }
+            pushDeferred(dfd);
+            ensureLoad();
+            return dfd.promise ? dfd.promise() : dfd;
+        },
+        getText: function(){
+            return xmlText;
+        }
+    };
+
+    // 즉시 로드 시도
+    ensureLoad();
+
+})(window, document, window.jQuery);

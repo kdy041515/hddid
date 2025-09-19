@@ -154,11 +154,12 @@
   // =========================
   function loadKioskXml(){
     var dfd = $.Deferred();
-    delay(0).then(function(){
+    var loader = window.KioskXmlScript;
+
+    function handleText(txt){
       try{
-        var txt = window.KIOSK_XML_TEXT;
         if(typeof txt !== 'string' || !txt.length){
-          error('[XML] window.KIOSK_XML_TEXT missing');
+          error('[XML] script payload empty');
           dfd.reject('XML_SCRIPT_EMPTY');
           return;
         }
@@ -169,7 +170,24 @@
         error('[XML] parse error (script payload)', e);
         dfd.reject(e);
       }
-    });
+    }
+
+    if(loader && typeof loader.load === 'function'){
+      try{
+        loader.load()
+          .done(function(txt){ handleText(txt); })
+          .fail(function(err){
+            error('[XML] script loader fail', err);
+            dfd.reject(err || 'XML_SCRIPT_LOAD_FAIL');
+          });
+      }catch(e){
+        error('[XML] script loader exception', e);
+        dfd.reject(e);
+      }
+    }else{
+      delay(0).then(function(){ handleText(window.KIOSK_XML_TEXT); });
+    }
+
     return dfd.promise();
   }
 
