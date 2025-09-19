@@ -109,5 +109,14 @@
         }
     });
     slide.mount(window.splide.Extensions);
+
+
+    function setInit() {
+        setLoadContents("xml/kiosk_contents.xml", setInitSetting); 
+    }
+    window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(setInit, 50);
+    });
+
 </script>
 </html>
