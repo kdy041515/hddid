@@ -307,6 +307,15 @@ function onReadXmlContents(p_xml, p_fnc) {
         return;
     }
 
+    try {
+        window.xml_data = xml_data;
+        if (window.jQuery) {
+            window.jQuery(document).trigger('xmlDataReady', [xml_data]);
+        }
+    } catch (pubErr) {
+        console.log("xml_data publish error", pubErr);
+    }
+
     console.log(xml_data)
 }
 
