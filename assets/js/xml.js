@@ -83,12 +83,10 @@ function onReadXmlContents(p_xml, p_fnc) {
 
                     if (xml_data.header.KIOSK_TYPE == "") xml_data.header.KIOSK_TYPE = "TYPE01";
                 } else if (child1.nodeName == "NOTICE_LIST_L") {
-
                     if (xml_data.arr_notice_list_l == null) {
                         console.log("CREAT NOR")
                         xml_data.arr_notice_list_l = new Array();
                     }
-
                     child2 = child1.firstChild;
                     str_type = getCvtXmlTag(child1.getAttribute("type"));
 
@@ -147,6 +145,10 @@ function onReadXmlContents(p_xml, p_fnc) {
                             CObj.PTIME = getCvtXmlNum(CObj.PTIME, 10);
                             //CObj.AREA_TYPE = getCvtXmlTag(CObj.AREA_TYPE);
                             //if(CObj.AREA_TYPE == "") CObj.AREA_TYPE = "FULL";
+                            CObj.FRAME_LIST = frame_list;
+                            if (frame_list.length > 0) {
+                                xml_data.arr_notice_list_l.push(CObj);
+                            }
                         }
                         child2 = child2.nextSibling;
                     }
@@ -161,7 +163,6 @@ function onReadXmlContents(p_xml, p_fnc) {
 
                     while (child2 != null && child2.nodeType != 4) {
                         if (child2.nodeName == "NOTICE_INFO") {
-                            console.log(1)
                             child3 = child2.firstChild;
 
                             var CObj = new Object();
@@ -216,6 +217,82 @@ function onReadXmlContents(p_xml, p_fnc) {
                             CObj.PTIME = getCvtXmlNum(CObj.PTIME, 10);
                             //CObj.AREA_TYPE = getCvtXmlTag(CObj.AREA_TYPE);
                             //if(CObj.AREA_TYPE == "") CObj.AREA_TYPE = "FULL";
+                            CObj.FRAME_LIST = frame_list;
+                            if (frame_list.length > 0) {
+                                xml_data.arr_notice_list_r.push(CObj);
+                            }
+                        }
+                        child2 = child2.nextSibling;
+                    }
+                } else if (child1.nodeName == "NOTICE_LIST_E") {
+
+                    if (xml_data.arr_notice_list_e == null) {
+                        xml_data.arr_notice_list_e = new Array();
+                    }
+
+                    child2 = child1.firstChild;
+                    str_type = getCvtXmlTag(child1.getAttribute("type"));
+
+                    while (child2 != null && child2.nodeType != 4) {
+                        if (child2.nodeName == "NOTICE_INFO") {
+                            child3 = child2.firstChild;
+
+                            var CObj = new Object();
+                            var frame_list = new Array();
+
+                            CObj.NOTICE_ID = getCvtXmlTag(child2.getAttribute("id"));
+                            CObj.DISP_TYPE = "SPC";
+
+                            while (child3 != null && child3.nodeType != 4) {
+                                if (child3.nodeName == "NOTICE_NAME") if (child3.childNodes[0]) CObj[child3.nodeName] = child3.childNodes[0].nodeValue;
+                                if (child3.nodeName == "SCH_TYPE") {
+                                    CObj.SDAY = getCvtXmlTag(child3.getAttribute("sday"));
+                                    CObj.EDAY = getCvtXmlTag(child3.getAttribute("eday"));
+                                    CObj.STIME = getCvtXmlTag(child3.getAttribute("stime"));
+                                    CObj.ETIME = getCvtXmlTag(child3.getAttribute("etime"));
+                                }
+                                if (child3.nodeName == "CON_TYPE") {
+                                    CObj.CON_TYPE = getCvtXmlTag(child3.childNodes[0].nodeValue)
+                                }
+                                if (child3.nodeName == "FRAME_LIST") {
+                                    child4 = child3.firstChild;
+                                    CObj.PTIME = getCvtXmlTag(child3.getAttribute("ptime"));
+                                    while (child4 != null && child4.nodeType != 4) {
+                                        var CFile = new Object();
+                                        if (child4.nodeName == "FRAME_INFO") {
+                                            CFile.FILE_ID = getCvtXmlTag(child4.getAttribute("id"));
+                                            CFile.TYPE = getCvtXmlTag(child4.getAttribute("type"));
+                                            CFile.X = getCvtXmlNum(child4.getAttribute("x", 0));
+                                            CFile.Y = getCvtXmlNum(child4.getAttribute("y", 0));
+                                            CFile.WIDTH = getCvtXmlNum(child4.getAttribute("width", 1290));
+                                            CFile.HEIGHT = getCvtXmlNum(child4.getAttribute("height", 690));
+                                            CFile.FILE_URL = getCvtXmlTag(child4.getAttribute("fileURL"));
+                                            //if(CFile.FILE_URL.substring(0,1) == "/") CFile.FILE_URL = CFile.FILE_URL.substring(1);
+                                            frame_list.push(CFile);
+                                        }
+                                        child4 = child4.nextSibling;
+                                    }
+                                }
+
+                                CObj.NOTICE_NAME = getCvtXmlTag(CObj.NOTICE_NAME);
+
+                                child3 = child3.nextSibling;
+                            }
+
+                            CObj.NOTICE_ID = getCvtXmlTag(CObj.NOTICE_ID);
+                            CObj.SDAY = getCvtXmlTag(CObj.SDAY);
+                            CObj.EDAY = getCvtXmlTag(CObj.EDAY);
+                            CObj.STIME = getCvtXmlTag(CObj.STIME);
+                            CObj.ETIME = getCvtXmlTag(CObj.ETIME);
+                            CObj.STIME_NUM = getCvtXmlNum(CObj.STIME, 0);
+                            CObj.ETIME_NUM = getCvtXmlNum(CObj.ETIME, 0);
+                            CObj.PTIME = getCvtXmlNum(CObj.PTIME, 10);
+                            //CObj.AREA_TYPE = getCvtXmlTag(CObj.AREA_TYPE);
+                            //if(CObj.AREA_TYPE == "") CObj.AREA_TYPE = "FULL";
+                            CObj.FRAME_LIST = frame_list;
+                            if (frame_list.length > 0) {
+                                xml_data.arr_notice_list_e.push(CObj);
+                            }
                         }
                         child2 = child2.nextSibling;
                     }
@@ -230,7 +307,6 @@ function onReadXmlContents(p_xml, p_fnc) {
         return;
     }
 
-    p_fnc(xml_data);
     console.log(xml_data)
 }
 

@@ -13,7 +13,6 @@
   // =========================
   // 환경 설정
   // =========================
-  var KIOSK_XML_URL = './xml/kiosk_contents.xml';
   var KST_OFFSET_MINUTES = 9 * 60; // Asia/Seoul UTC+9
   var BASE = (function(){
     try{
@@ -155,28 +154,40 @@
   // =========================
   function loadKioskXml(){
     var dfd = $.Deferred();
-    log('[XML] GET', KIOSK_XML_URL);
-    $.ajax({
-      url: KIOSK_XML_URL,
-      type: 'GET',
-      dataType: 'text',
-      cache: false,
-      // 구형 WebView 캐시/부분요청 삑 방지
-      headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' },
-    })
-    .done(function(txt){
+    var loader = window.KioskXmlScript;
+
+    function handleText(txt){
       try{
+        if(typeof txt !== 'string' || !txt.length){
+          error('[XML] script payload empty');
+          dfd.reject('XML_SCRIPT_EMPTY');
+          return;
+        }
         var data = parseXmlText(txt);
+        log('[XML] script payload parsed');
         dfd.resolve(data);
       }catch(e){
-        error('[XML] parse error', e);
+        error('[XML] parse error (script payload)', e);
         dfd.reject(e);
       }
-    })
-    .fail(function(xhr, status, err){
-      error('[XML] load fail', status, err, xhr && xhr.status);
-      dfd.reject(err||status||'XML_LOAD_FAIL');
-    });
+    }
+
+    if(loader && typeof loader.load === 'function'){
+      try{
+        loader.load()
+          .done(function(txt){ handleText(txt); })
+          .fail(function(err){
+            error('[XML] script loader fail', err);
+            dfd.reject(err || 'XML_SCRIPT_LOAD_FAIL');
+          });
+      }catch(e){
+        error('[XML] script loader exception', e);
+        dfd.reject(e);
+      }
+    }else{
+      delay(0).then(function(){ handleText(window.KIOSK_XML_TEXT); });
+    }
+
     return dfd.promise();
   }
 
